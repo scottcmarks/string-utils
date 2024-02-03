@@ -85,7 +85,8 @@ Returns a padded copy of string STR-VAL.
 
 ## Compatibility and Requirements
 
-	GNU Emacs version 24.4-devel     : yes, at the time of writing
+	GNU Emacs version 27.1           : yes
+	GNU Emacs version 24.4           : yes, probably (this and below)
 	GNU Emacs version 24.3           : yes
 	GNU Emacs version 23.3           : yes
 	GNU Emacs version 22.2           : yes, with some limitations
