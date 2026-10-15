@@ -7,7 +7,7 @@
 ;; URL: http://raw.githubusercontent.com/rolandwalker/string-utils/master/string-utils.el
 ;; Version: 0.3.2
 ;; Last-Updated: 22 Oct 2013
-;; Package-Requires: ((list-utils "0.4.2"))
+;; Package-Requires: ((emacs "24.3") (list-utils "0.4.2"))
 ;; EmacsWiki: StringUtils
 ;; Keywords: extensions
 ;;
@@ -65,13 +65,19 @@
 ;;
 ;; Compatibility and Requirements
 ;;
-;;     GNU Emacs version 24.4-devel     : yes, at the time of writing
-;;     GNU Emacs version 24.3           : yes
-;;     GNU Emacs version 23.3           : yes
-;;     GNU Emacs version 22.2           : yes, with some limitations
-;;     GNU Emacs version 21.x and lower : unknown
+;;     GNU Emacs version 28.2           : yes, tested
+;;     GNU Emacs version 27.1           : yes, tested
+;;     GNU Emacs version 25.x and 26.x  : untested, expected to work
+;;     GNU Emacs version 24.3           : yes, tested
+;;     GNU Emacs version 24.2 and lower : no, requires cl-lib (built in from 24.3)
+;;
+;;     "Tested" means the ERT suite in ert-tests/ passes.
 ;;
 ;;     Uses if present: list-utils.el, obarray-fns.el
+;;
+;;     Before Emacs 26, `obarrayp' is provided only by obarray-fns.el.
+;;     Without it, `string-utils-stringify-anything' stringifies an
+;;     obarray like an ordinary vector.
 ;;
 ;; Bugs
 ;;
@@ -1102,7 +1108,6 @@ It defaults to the UCS character \"Horizontal Ellipsis\", or
 ;; mangle-whitespace: t
 ;; require-final-newline: t
 ;; coding: utf-8
-;; byte-compile-warnings: (not cl-functions redefine)
 ;; End:
 ;;
 ;; LocalWords: StringUtils ARGS alist utils darkspace quotemeta bool

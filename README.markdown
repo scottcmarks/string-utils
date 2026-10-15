@@ -85,11 +85,16 @@ Returns a padded copy of string STR-VAL.
 
 ## Compatibility and Requirements
 
-	GNU Emacs version 27.1           : yes
-	GNU Emacs version 24.4           : yes, probably (this and below)
-	GNU Emacs version 24.3           : yes
-	GNU Emacs version 23.3           : yes
-	GNU Emacs version 22.2           : yes, with some limitations
-	GNU Emacs version 21.x and lower : unknown
+	GNU Emacs version 28.2           : yes, tested
+	GNU Emacs version 27.1           : yes, tested
+	GNU Emacs version 25.x and 26.x  : untested, expected to work
+	GNU Emacs version 24.3           : yes, tested
+	GNU Emacs version 24.2 and lower : no, requires `cl-lib` (built in from 24.3)
+
+"Tested" means the ERT suite in `ert-tests/` passes.
 
 Uses if present: [list-utils.el](http://github.com/rolandwalker/list-utils), [obarray-fns.el](http://www.splode.com/~friedman/software/emacs-lisp/src/obarray-fns.el)
+
+Before Emacs 26, `obarrayp` is provided only by obarray-fns.el.  Without it,
+`string-utils-stringify-anything` stringifies an obarray like an ordinary
+vector.
