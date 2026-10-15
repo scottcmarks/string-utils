@@ -431,11 +431,12 @@
 (ert-deftest string-utils-stringify-anything-vector-06 nil
   "A compiled function with an empty constants vector can be stringified"
   ;; this file is not lexical-binding, so build a lexical closure explicitly
+  ;; (`skip-unless' is missing in Emacs 24.3, so use `when')
   (let ((compiled (byte-compile (eval '(lambda (x) (+ x 1)) t))))
-    (skip-unless (and (byte-code-function-p compiled)
-                      (vectorp (aref compiled 2))
-                      (= 0 (length (aref compiled 2)))))
-    (should (stringp (string-utils-stringify-anything compiled)))))
+    (when (and (byte-code-function-p compiled)
+               (vectorp (aref compiled 2))
+               (= 0 (length (aref compiled 2))))
+      (should (stringp (string-utils-stringify-anything compiled))))))
 
 (cl-defstruct string-utils-test-point x y)
 
@@ -1232,17 +1233,19 @@
 
 (ert-deftest string-utils-squeeze-filename-82 nil
   "By default a name under HOME is abbreviated with a tilde."
+  ;; (only meaningful if HOME can be abbreviated; `skip-unless' is missing
+  ;; in Emacs 24.3, so use `when')
   (let ((name (concat (file-name-as-directory (expand-file-name "~")) "su-test/file.txt")))
-    (skip-unless (not (equal name (abbreviate-file-name name))))
-    (should (equal (abbreviate-file-name name)
-                   (string-utils-squeeze-filename name 500)))))
+    (when (not (equal name (abbreviate-file-name name)))
+      (should (equal (abbreviate-file-name name)
+                     (string-utils-squeeze-filename name 500))))))
 
 (ert-deftest string-utils-squeeze-filename-83 nil
   "With DONT-ABBREVIATE-FILE-NAME a name under HOME keeps its full prefix."
   (let ((name (concat (file-name-as-directory (expand-file-name "~")) "su-test/file.txt")))
-    (skip-unless (not (equal name (abbreviate-file-name name))))
-    (should (equal name
-                   (string-utils-squeeze-filename name 500 nil nil nil 'dont-abbreviate-file-name)))))
+    (when (not (equal name (abbreviate-file-name name)))
+      (should (equal name
+                     (string-utils-squeeze-filename name 500 nil nil nil 'dont-abbreviate-file-name))))))
 
 
 ;;; string-utils-squeeze-url
