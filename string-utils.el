@@ -1,12 +1,13 @@
-;;; string-utils.el --- String-manipulation utilities
+;;; string-utils.el --- String-manipulation utilities  -*- lexical-binding: t -*-
 ;;
 ;; Copyright (c) 2012-13 Roland Walker
 ;;
 ;; Author: Roland Walker <walker@pobox.com>
-;; Homepage: http://github.com/rolandwalker/string-utils
-;; URL: http://raw.githubusercontent.com/rolandwalker/string-utils/master/string-utils.el
-;; Version: 0.3.2
-;; Last-Updated: 22 Oct 2013
+;; Maintainer: Scott Marks
+;; Homepage: https://github.com/scottcmarks/string-utils
+;; URL: https://raw.githubusercontent.com/scottcmarks/string-utils/feature/cl-lib/string-utils.el
+;; Version: 0.4.0
+;; Last-Updated: 15 Oct 2026
 ;; Package-Requires: ((emacs "24.3") (list-utils "0.4.2"))
 ;; EmacsWiki: StringUtils
 ;; Keywords: extensions
@@ -73,7 +74,11 @@
 ;;
 ;;     "Tested" means the ERT suite in ert-tests/ passes.
 ;;
-;;     Uses if present: list-utils.el, obarray-fns.el
+;;     Requires: list-utils.el, for correct handling of circular lists
+;;     (without it, a circular list is stringified with some elements
+;;     repeated).
+;;
+;;     Uses if present: obarray-fns.el
 ;;
 ;;     Before Emacs 26, `obarrayp' is provided only by obarray-fns.el.
 ;;     Without it, `string-utils-stringify-anything' stringifies an
@@ -1071,6 +1076,7 @@ When RESPECT-ESCAPES is set, STRING is not split where the
 separator is escaped with backslash.  This currently has the
 limitation that SEPARATORS must be an explicit string rather than
 a regular expression."
+  (ignore include-separators)           ; unimplemented, but part of the signature
   (cond
     (respect-escapes
      (cl-assert separators nil "SEPARATORS must be a string")

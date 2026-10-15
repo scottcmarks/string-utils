@@ -93,7 +93,11 @@ Returns a padded copy of string STR-VAL.
 
 "Tested" means the ERT suite in `ert-tests/` passes.
 
-Uses if present: [list-utils.el](http://github.com/rolandwalker/list-utils), [obarray-fns.el](http://www.splode.com/~friedman/software/emacs-lisp/src/obarray-fns.el)
+Requires: [list-utils.el](http://github.com/rolandwalker/list-utils), for correct
+handling of circular lists (without it, a circular list is stringified with some
+elements repeated).
+
+Uses if present: [obarray-fns.el](http://www.splode.com/~friedman/software/emacs-lisp/src/obarray-fns.el)
 
 Before Emacs 26, `obarrayp` is provided only by obarray-fns.el.  Without it,
 `string-utils-stringify-anything` stringifies an obarray like an ordinary
