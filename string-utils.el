@@ -444,7 +444,7 @@ an ordinary string."
     ((listp obj)
      (let* ((measurer (if (fboundp 'list-utils-safe-length) 'list-utils-safe-length 'safe-length))
             (len (funcall measurer obj))
-            (cracked (subseq obj 0 len))                   ; break cycles
+            (cracked (cl-subseq obj 0 len))                   ; break cycles
             (flat-extent (list-utils-flat-length cracked))
             (output nil))
 
@@ -461,7 +461,7 @@ an ordinary string."
          ;; flat list. logic looks a little odd, does the odd thing that I wanted on keymaps
          ((> flat-extent 1)
           (cl-decf flat-extent)
-          (dolist (elt (subseq cracked 0 flat-extent))
+          (dolist (elt (cl-subseq cracked 0 flat-extent))
             (push (string-utils-stringify-anything elt separator ints-are-chars record-separator) output))
           (push (string-utils-stringify-anything (nthcdr flat-extent cracked) separator ints-are-chars record-separator) output))
 
