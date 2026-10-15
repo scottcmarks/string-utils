@@ -239,6 +239,45 @@ If the car of LIST is a cons, return 0."
            (not (fboundp 'eieio-object-name-string)))
   (fset 'eieio-object-name-string 'object-name-string))
 
+(defun string-utils--vector-looks-like-obarray-p (vec)
+  "Return non-nil if the vector VEC plausibly is a vector-style obarray.
+In Emacs versions where an obarray is a plain vector, `obarrayp'
+is true of any non-empty vector, so it cannot be used alone to
+tell an obarray from an ordinary vector.  The slots of an obarray
+hold either 0 or an interned symbol, so require that every slot be
+0 or a symbol which `intern-soft' finds in VEC, and that there be at
+least one symbol.
+
+That alone is not enough, because a small vector such as [a] is
+structurally a valid obarray.  A symbol read from source is the
+global one, whereas a symbol in a private obarray is distinct from
+the global symbol of the same name, so also require that no slot hold
+the global symbol (the global obarray itself is the exception).
+
+An all-zero vector is ambiguous (an empty obarray, or a vector of
+zeros) and is treated as an ordinary vector."
+  (or
+   ;; the global obarray: its slots hold global symbols (even `nil'),
+   ;; which the checks below would reject
+   (eq vec (symbol-value 'obarray))
+   (let ((saw-symbol nil)
+         (ok t)
+         (i 0)
+         (len (length vec)))
+     (while (and ok (< i len))
+       (let ((elt (aref vec i)))
+         (cond
+           ((eq elt 0))
+           ((and elt
+                 (symbolp elt)
+                 (eq elt (intern-soft (symbol-name elt) vec))
+                 (not (eq elt (intern-soft (symbol-name elt)))))
+            (setq saw-symbol t))
+           (t
+            (setq ok nil))))
+       (setq i (1+ i)))
+     (and ok saw-symbol))))
+
 ;;; utility functions
 
 ;;;###autoload
@@ -474,10 +513,20 @@ an ordinary string."
 
     ;; defstruct
     ((and (vectorp obj)
+          (> (length obj) 0)
           (symbolp (aref obj 0))
           (string-match-p "\\`cl-" (symbol-name (aref obj 0))))
      (mapconcat #'(lambda (x)
                     (string-utils-stringify-anything x separator ints-are-chars record-separator)) (cdr (append obj nil)) separator))
+
+    ;; record, as made by `cl-defstruct' since Emacs 26.  Like the vector
+    ;; version above, skip the type tag in slot 0.
+    ((and (fboundp 'recordp)
+          (recordp obj))
+     (let ((output nil))
+       (dotimes (i (1- (length obj)))
+         (push (string-utils-stringify-anything (aref obj (1+ i)) separator ints-are-chars record-separator) output))
+       (mapconcat 'identity (nreverse output) separator)))
 
     ;; bool-vector
     ((bool-vector-p obj)
@@ -486,13 +535,20 @@ an ordinary string."
 
     ;; abbrev-table
     ((ignore-errors (abbrev-table-p obj))
-     (let ((output nil))
+     (let ((output nil)
+           (syms nil))
+       ;; `mapatoms' visits symbols in an unspecified order which varies with
+       ;; the obarray size and hashing, so sort by name to make the result
+       ;; deterministic.  OUTPUT is built in reverse, so process the symbols
+       ;; in descending order to end up with ascending order.
        (mapatoms #'(lambda (sym)
                      (when (> (length (symbol-name sym)) 0)
-                       (if (stringp (symbol-value sym))
-                           (push (string-utils-stringify-anything (symbol-value sym) separator ints-are-chars record-separator) output)
-                         (push (string-utils-stringify-anything (symbol-function sym) separator ints-are-chars record-separator) output))
-                       (push (string-utils-stringify-anything sym separator ints-are-chars record-separator) output))) obj)
+                       (push sym syms))) obj)
+       (dolist (sym (sort syms #'(lambda (a b) (string< (symbol-name b) (symbol-name a)))))
+         (if (stringp (symbol-value sym))
+             (push (string-utils-stringify-anything (symbol-value sym) separator ints-are-chars record-separator) output)
+           (push (string-utils-stringify-anything (symbol-function sym) separator ints-are-chars record-separator) output))
+         (push (string-utils-stringify-anything sym separator ints-are-chars record-separator) output))
        (mapconcat 'identity
                   (nbutlast
                    (cl-loop for (k v) on output by 'cddr
@@ -505,7 +561,9 @@ an ordinary string."
 
     ;; obarray
     ((and (fboundp 'obarrayp)
-          (obarrayp obj))
+          (obarrayp obj)
+          (or (not (vectorp obj))       ; Emacs 30+: obarrays are a distinct type
+              (string-utils--vector-looks-like-obarray-p obj)))
      (let ((output nil))
        (mapatoms #'(lambda (sym)
                      (when (boundp sym)

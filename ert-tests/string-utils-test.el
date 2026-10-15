@@ -56,7 +56,7 @@
 
 (ert-deftest string-utils-stringify-anything-11 nil
   (should
-   (string-match-p "\\`[0-9.-]+\\'" (string-utils-stringify-anything (make-random-state) ""))))
+   (string-match-p "\\`[0-9.-]+\\'" (string-utils-stringify-anything (cl-make-random-state) ""))))
 
 (ert-deftest string-utils-stringify-anything-12 nil
   (should (equal "t t t t t t t t t t"
@@ -79,12 +79,13 @@
           (string-utils-stringify-anything tester nil nil "\n")))))
 
 (ert-deftest string-utils-stringify-anything-15 nil
-  (should (equal ""
-                 (string-utils-stringify-anything (make-byte-code nil nil nil nil) ""))))
+  ;; a valid byte-code object has a string and a vector, and a numeric depth
+  (should (equal "0"
+                 (string-utils-stringify-anything (make-byte-code nil "" [] 0) ""))))
 
 (ert-deftest string-utils-stringify-anything-16 nil
   (should (equal "args...0"
-                 (string-utils-stringify-anything (make-byte-code '(args) nil nil 0) "."))))
+                 (string-utils-stringify-anything (make-byte-code '(args) "" [] 0) "."))))
 
 (ert-deftest string-utils-stringify-anything-17 nil
   (should (string-match-p "\\`1 +\\*temp\\*"
@@ -172,11 +173,13 @@
 
 (ert-deftest string-utils-stringify-anything-30 nil
   :expected-result (if (fboundp 'defclass) :passed :failed)
-  (let ((value "object_name"))
-    (defclass string-utils-tester nil
-      ((uid :initarg :uid)))
-    (should (equal value
-                   (string-utils-stringify-anything (string-utils-tester value))))))
+  ;; Newer EIEIO ignores a name argument to the constructor and generates
+  ;; the object name, which begins with the class name.
+  (defclass string-utils-tester nil
+    ((uid :initarg :uid)))
+  (should (string-match-p "\\`string-utils-tester"
+                          (string-utils-stringify-anything
+                           (make-instance 'string-utils-tester :uid "object_name")))))
 
 (ert-deftest string-utils-stringify-anything-31 nil
   "Stringify window title"
@@ -316,12 +319,27 @@
             (string-utils-stringify-anything value)))
     (define-abbrev value "twoo" "two")
     (define-abbrev value "threee" "three")
+    ;; output is sorted by abbrev name
     (should
-     (equal "twoo two threee three"
+     (equal "threee three twoo two"
             (string-utils-stringify-anything value)))
     (should
-     (equal "twoo two\nthreee three\n"
+     (equal "threee three\ntwoo two\n"
             (string-utils-stringify-anything value nil nil "\n")))))
+
+(ert-deftest string-utils-stringify-anything-41b nil
+  "Stringifying an abbrev table does not depend on definition order"
+  (let ((forward (make-abbrev-table))
+        (backward (make-abbrev-table))
+        (names '("alpha" "bravo" "charlie" "delta" "echo" "foxtrot" "golf")))
+    (dolist (name names)
+      (define-abbrev forward name (upcase name)))
+    (dolist (name (reverse names))
+      (define-abbrev backward name (upcase name)))
+    (should (equal "alpha ALPHA bravo BRAVO charlie CHARLIE delta DELTA echo ECHO foxtrot FOXTROT golf GOLF"
+                   (string-utils-stringify-anything forward)))
+    (should (equal (string-utils-stringify-anything forward)
+                   (string-utils-stringify-anything backward)))))
 
 (ert-deftest string-utils-stringify-anything-42 nil
   "Stringify Network process"
@@ -371,6 +389,82 @@
     (should
      (equal "var-1 1\nvar-2 2\nvar-3 3\n"
             (string-utils-stringify-anything value nil nil "\n")))))
+
+(ert-deftest string-utils-stringify-anything-vector-01 nil
+  "A vector of numbers is not mistaken for an obarray"
+  (should (equal "1 2 3"
+                 (string-utils-stringify-anything [1 2 3]))))
+
+(ert-deftest string-utils-stringify-anything-vector-02 nil
+  "A vector of symbols which are not in it is not mistaken for an obarray"
+  (should (equal "a b"
+                 (string-utils-stringify-anything [a b]))))
+
+(ert-deftest string-utils-stringify-anything-vector-03 nil
+  "An empty vector does not signal an error"
+  (should (equal ""
+                 (string-utils-stringify-anything []))))
+
+(ert-deftest string-utils-stringify-anything-vector-04 nil
+  "Vectors containing nil and t"
+  (should (equal " t"
+                 (string-utils-stringify-anything [nil t]))))
+
+(ert-deftest string-utils-stringify-anything-vector-05 nil
+  "An all-zero vector is ambiguous and is stringified as a vector"
+  (should (equal "0 0 0"
+                 (string-utils-stringify-anything [0 0 0]))))
+
+(ert-deftest string-utils-stringify-anything-vector-07 nil
+  "Small vectors of global symbols are not mistaken for obarrays"
+  (should (equal "t" (string-utils-stringify-anything [t])))
+  (should (equal "a" (string-utils-stringify-anything [a])))
+  (should (equal "t t" (string-utils-stringify-anything [t t]))))
+
+(ert-deftest string-utils-stringify-anything-vector-08 nil
+  "A private obarray is recognized even when it holds a name that is also global"
+  (let ((value (make-vector 7 0)))
+    (set (intern "car" value) 1)
+    (should (equal "car 1"
+                   (string-utils-stringify-anything value)))))
+
+(ert-deftest string-utils-stringify-anything-vector-06 nil
+  "A compiled function with an empty constants vector can be stringified"
+  ;; this file is not lexical-binding, so build a lexical closure explicitly
+  (let ((compiled (byte-compile (eval '(lambda (x) (+ x 1)) t))))
+    (skip-unless (and (byte-code-function-p compiled)
+                      (vectorp (aref compiled 2))
+                      (= 0 (length (aref compiled 2)))))
+    (should (stringp (string-utils-stringify-anything compiled)))))
+
+(cl-defstruct string-utils-test-point x y)
+
+(ert-deftest string-utils-stringify-anything-record-01 nil
+  "Stringify a cl-defstruct instance, skipping the type tag"
+  (should (equal "1 two"
+                 (string-utils-stringify-anything
+                  (make-string-utils-test-point :x 1 :y "two")))))
+
+(ert-deftest string-utils-stringify-anything-record-02 nil
+  "Stringify a cl-defstruct instance with a separator"
+  (should (equal "1,2"
+                 (string-utils-stringify-anything
+                  (make-string-utils-test-point :x 1 :y 2) ","))))
+
+(ert-deftest string-utils-stringify-anything-record-03 nil
+  "Stringify a record nested in a list, and a record with nested contents"
+  (should (equal "1 2 3"
+                 (string-utils-stringify-anything
+                  (list (make-string-utils-test-point :x 1 :y 2) 3))))
+  (should (equal "1 2 3"
+                 (string-utils-stringify-anything
+                  (make-string-utils-test-point :x (make-string-utils-test-point :x 1 :y 2) :y 3)))))
+
+(ert-deftest string-utils-stringify-anything-record-04 nil
+  "Stringify a record with no slots"
+  (cl-defstruct string-utils-test-empty)
+  (should (equal ""
+                 (string-utils-stringify-anything (make-string-utils-test-empty)))))
 
 (ert-deftest string-utils-stringify-anything-46 nil
   "Stringify long list"
@@ -458,8 +552,8 @@
   (should (= 1
              (with-temp-buffer
                (emacs-lisp-mode)
-               ;; Narrow No-Break Space
-               (string-utils-has-darkspace-p (string ?\s (decode-char 'ucs #x0202f)) 'syntax)))))
+               ;; Ogham Space Mark: Unicode whitespace which is not whitespace by syntax
+               (string-utils-has-darkspace-p (string ?\s (decode-char 'ucs #x01680)) 'syntax)))))
 
 (ert-deftest string-utils-has-darkspace-p-13 nil
   (should-not
@@ -546,8 +640,8 @@
   (should-not
    (with-temp-buffer
      (emacs-lisp-mode)
-     ;; Narrow No-Break Space
-     (string-utils-has-whitespace-p (concat "text" (string (decode-char 'ucs #x0202f))) 'syntax))))
+     ;; Ogham Space Mark: Unicode whitespace which is not whitespace by syntax
+     (string-utils-has-whitespace-p (concat "text" (string (decode-char 'ucs #x01680))) 'syntax))))
 
 (ert-deftest string-utils-has-whitespace-p-16 nil
   (should-not
@@ -593,11 +687,11 @@
                  (string-utils-trim-whitespace (concat "\n text \n words\t\r" (string (decode-char 'ucs #x0202f))) 'ascii))))
 
 (ert-deftest string-utils-trim-whitespace-07 nil
-  (should (equal (concat "\n text \n words\t\r" (string (decode-char 'ucs #x0202f)))
+  (should (equal (concat "\n text \n words\t\r" (string (decode-char 'ucs #x01680)))
                  (with-temp-buffer
                    (emacs-lisp-mode)
-                   ;; Narrow No-Break Space
-                   (string-utils-trim-whitespace (concat "\n text \n words\t\r" (string (decode-char 'ucs #x0202f))) 'syntax)))))
+                   ;; Ogham Space Mark: Unicode whitespace which is not whitespace by syntax
+                   (string-utils-trim-whitespace (concat "\n text \n words\t\r" (string (decode-char 'ucs #x01680))) 'syntax)))))
 
 (ert-deftest string-utils-trim-whitespace-08 nil
   (should (equal "text\nwords"
@@ -611,11 +705,11 @@
                    (string-utils-trim-whitespace "\n text \n words\t\r" 'syntax 'multi-line)))))
 
 (ert-deftest string-utils-trim-whitespace-10 nil
-  (should (equal (concat "\ntext\nwords\t\r" (string (decode-char 'ucs #x0202f)))
+  (should (equal (concat "\ntext\nwords\t\r" (string (decode-char 'ucs #x01680)))
                  (with-temp-buffer
                    (emacs-lisp-mode)
-                   ;; Narrow No-Break Space
-                   (string-utils-trim-whitespace (concat "\n text \n words\t\r" (string (decode-char 'ucs #x0202f))) 'syntax 'multi-line)))))
+                   ;; Ogham Space Mark: Unicode whitespace which is not whitespace by syntax
+                   (string-utils-trim-whitespace (concat "\n text \n words\t\r" (string (decode-char 'ucs #x01680))) 'syntax 'multi-line)))))
 
 (ert-deftest string-utils-trim-whitespace-11 nil
   (should (equal (concat "text\nwords\t\r" (string (decode-char 'ucs #x0202f)))
@@ -650,11 +744,11 @@
                    (string-utils-compress-whitespace "\n text \n words\t\r" 'syntax)))))
 
 (ert-deftest string-utils-compress-whitespace-06 nil
-  (should (equal (concat "\n text \n words \r" (string (decode-char 'ucs #x0202f)))
+  (should (equal (concat "\n text \n words \r" (string (decode-char 'ucs #x01680)))
                  (with-temp-buffer
                    (emacs-lisp-mode)
-                   ;; Narrow No-Break Space
-                   (string-utils-compress-whitespace (concat "\n text \n words\t\r" (string (decode-char 'ucs #x0202f))) 'syntax)))))
+                   ;; Ogham Space Mark: Unicode whitespace which is not whitespace by syntax
+                   (string-utils-compress-whitespace (concat "\n text \n words\t\r" (string (decode-char 'ucs #x01680))) 'syntax)))))
 
 
 ;;; string-utils-string-repeat
@@ -1135,6 +1229,20 @@
 (ert-deftest string-utils-squeeze-filename-81 nil
   (should (equal "test_long_file_name_…"
                  (string-utils-squeeze-filename "test_long_file_name_no_extension" 21 nil "…" 'no-tail))))
+
+(ert-deftest string-utils-squeeze-filename-82 nil
+  "By default a name under HOME is abbreviated with a tilde."
+  (let ((name (concat (file-name-as-directory (expand-file-name "~")) "su-test/file.txt")))
+    (skip-unless (not (equal name (abbreviate-file-name name))))
+    (should (equal (abbreviate-file-name name)
+                   (string-utils-squeeze-filename name 500)))))
+
+(ert-deftest string-utils-squeeze-filename-83 nil
+  "With DONT-ABBREVIATE-FILE-NAME a name under HOME keeps its full prefix."
+  (let ((name (concat (file-name-as-directory (expand-file-name "~")) "su-test/file.txt")))
+    (skip-unless (not (equal name (abbreviate-file-name name))))
+    (should (equal name
+                   (string-utils-squeeze-filename name 500 nil nil nil 'dont-abbreviate-file-name)))))
 
 
 ;;; string-utils-squeeze-url
